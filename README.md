@@ -1,7 +1,7 @@
 # learn-redis
 >Redis 是一个开源（BSD许可）的，内存中的数据结构存储系统，它可以用作数据库、缓存和消息中间件。 它支持多种类型的数据结构，如 字符串（strings）， 散列（hashes）， 列表（lists）， 集合（sets）， 有序集合（sorted sets） 与范围查询， bitmaps， hyperloglogs 和 地理空间（geospatial） 索引半径查询。 Redis 内置了 复制（replication），LUA脚本（Lua scripting）， LRU驱动事件（LRU eviction），事务（transactions） 和不同级别的 磁盘持久化（persistence）， 并通过 Redis哨兵（Sentinel）和自动 分区（Cluster）提供高可用性（high availability）。
 
-## 基本命令
+## 1.基本命令
 ```
 ping                    # 测试联通：PONG
 set name value          # 设置KEY
@@ -14,8 +14,8 @@ expire name time        # 设置KEY过期时间
 ttl name                # 查看剩余时间，-2为已过期
 exist name              # 判断KEY是否存在
 ```   
-
-## String类型
+# 2.五大基础类型
+## 2.1.String类型
 ```
 append                  # 追加数据，name不存在set
 strlen                  # 数据长度
@@ -62,7 +62,7 @@ getset db mongoDB       # 得出来redis,再get db 为mongoDB
 set uid:9555:follow 0 incr
 ```
 
-## List类型
+## 2.2.List类型
 >基本数据类型，增加点规则玩成：栈、队列
 >所有List命令都是l开头
 ```
@@ -94,17 +94,47 @@ linsert list after world other # 在world下面插入other
 >Lpush Rpop：队列
 >Lpush Lpop：栈
 
-## Set(集合)
+## 2.3.Set(集合)
 >set中的值不能重复
 ```
-sadd myset hello   # set中添加
+sadd myset hello        # 在myset中添加hello
 sadd myset kangshen  
-smembers myset   # 查看set所有制
-sismember myset hello  # 判断元素是否存在
-scard myset   # 查询set个数
-srem myset hello   # 移除hello
-srandmember myset  # 随机读取1个
-srandmember myset 2  # 随机读取指定个数
-
+smembers myset          # 查看set所有制
+sismember myset hello   # 判断元素是否存在
+scard myset             # 查询set个数
+srem myset hello        # 移除hello
+srandmember myset       # 随机读取1个
+srandmember myset 2     # 随机读取指定个数
+spop myset              # 随机移除1个
+smove myset myset2 "ku" # 移动ku到myset2
+<!-- 例子：共同关注：交集 -->
+sdiff key1 key2         # 差集，显示不同的
+sinter key1 key2        # 交集:共同好友
+sunion key1 key2        # 并集
+<!-- 例子：微博A用户所有关注的人放在SET集合中 -->
+<!-- 共同关注,共同爱好，六度理论 -->
+```
+## 2.4.Hash~Map
+>Map集合，key-value,村的也是键值对，但是value是个map集合
+```
+hset key field value    # 添加key-value到Hash
+hget key field          # 获取keyHash中的field
+hmset myhash k1 v1 k2 v2# 插入多个值
+hmget myhash k1 k2      # 获取多个值
+hgetall myhash          # 获取所有的值
+hdel key field          # 删除field字段
+hlen key                # 获取hash表字段数量
+hexists myhash field    # 判断hash指定字段是否存在
+# 只获得所有field
+hkeys myhash
+# 后的所有的值
+kvals myhash
+# 指定自增 i++ / i--
+hincrby myhash field3 1 
+hdecr myhash field 3 1 
+hsetnx myhash field4 hello  #不存在会创建，存在就不创建
+<!-- 例子:hash变更数据,设置对象 -->
+hset user:1 name qinjing
+hget user:1 name
 ```
 
