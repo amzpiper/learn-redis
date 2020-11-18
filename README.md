@@ -136,5 +136,27 @@ hsetnx myhash field4 hello  #不存在会创建，存在就不创建
 <!-- 例子:hash变更数据,设置对象 -->
 hset user:1 name qinjing
 hget user:1 name
+<!-- hash更适合存储对象 -->
 ```
+## Zset(有序集合)
+>在set的基础上，增加1个值，set k1 v1 / zset k1 score1 v1
+```
+zadd myzset 1 one           # 添加1个值
+zadd myzset 2 two 3 three   # 添加多个值
+zrange myset 0 -1           # 查询所有值
+<!-- 排序 -->
+zadd salary 2500 xiaohong 5000 zhangsan 500 kuangshen
+zrangebyscore salary -inf +inf              # 从小到大
+1) "kuangshen"
+2) "xiaohong" 
+3) "zhangsan"
+zrangebyscore salary -inf +inf withscores   # 从小到大，并输出score
+zrem salary xiaohong        # 移除小红
+zcard salary                # 获取个数
+zrevrange salary 0 -1       # 从大到小:反转
+zcount salary key min max   # 判断区间个数(闭区间)
+```
+>案例思路：set->排序、班级成绩表、工资表、带权重的消息、排行榜(有序集合zset中)
+
+## 3.三种特殊数据类型
 
