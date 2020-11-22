@@ -138,7 +138,7 @@ hset user:1 name qinjing
 hget user:1 name
 <!-- hash更适合存储对象 -->
 ```
-## Zset(有序集合)
+## 2.5.Zset(有序集合)
 >在set的基础上，增加1个值，set k1 v1 / zset k1 score1 v1
 ```
 zadd myzset 1 one           # 添加1个值
@@ -158,5 +158,175 @@ zcount salary key min max   # 判断区间个数(闭区间)
 ```
 >案例思路：set->排序、班级成绩表、工资表、带权重的消息、排行榜(有序集合zset中)
 
-## 3.三种特殊数据类型
+# 3.三种特殊数据类型
+## 3.1.geospatial地理位置
+>朋友的定位，附近的人，打车距离怎么算？城市经度纬度，redis3.2版本的geo就退出了。
+只有6个命令：GEOADD、GEODIST、GEOHASH、GEOPOS、GEORADIUS、GEORADIUSBYMEMBER
+```
+geoadd                      #添加地理位置
+geoadd china:city 116.40 39.90 beijing
+geoadd china:city 121.47 31.23 shanghai
+geoadd china:city 160.50 29.53 chongqing 114.05 22.52 shenzhen
+# 规则：两级无法直接添加，我们一般会下载城市数据，用JAVA一次导入
+# 参数：key 维度 精度 名称
+geopos key name             # 获取精度和纬度
+# geodist 单位，两地之间距离：
+# m 米
+# km 千米
+# mi 盈利
+# ft 英尺
+geodist key beijin shanghai km # 两地之间距离直线，单位千米
+<!-- 例子：我附近的人,找朋友： -->
+<!-- georedius:以给定的经纬度为中心，找出半径内的元素 -->
+# 1、记录所有人的经纬度
+# 2、获得所有附近的人的地址，定位最近的老师！
+# 以经纬度为精心，显示城市到我某距离内的指定人数
+georadius key logitude latitude radius m|km|ft|mi withdist withcoord count num
+georadius china:city 110 120 1000 km withdist withcoord count 3
+# 以经纬度为精心，显示城市到我有多远:距离
+georadius china:city 110 120 1000 km withdist
+# 以经纬度为精心，显示城市到我某距离内所有人到我的经纬度信息
+georadius china:city 110 120 1000 km withcoord
+# 以北京元素为中心找出距离我某距离的所有城市
+<!-- 例子：导航定位，georadiusbymember：找出位于指定元素周围的其他元素 -->
+georadiusbymember china:city beijing 1000 km
+georadiusbymember china:city shanghai 400 km
+# geohash:找到1个或多个元素的geohash表示:52点证书编码，返回11个字符的字符串，所以没有精度,还是两个元素距离：将二位经纬度转换为1维的经纬度hash字符串表示：2个字符串长得越像，越接近
+geohash china:city beijing shanghai 
+```
+>geo实现原理：基于Zset,可以使用Zset操作geo
+>所以用zset命令进行删除修改
+```
+zrange china:city 0 -1              # 查看所有城市
+zrem china:city beijing             # 删除北京
+```
+## 3.2.Hyperloglog基数统计
+>什么是基数？不重复的元素
+>A {1,3,5,7,8,7}
+>B {1,3,5,7,8}
+>基数：1,3,5,7,8
+>Redis 2.8.9 半根更新了Heyperloglog数据结构
+>统计网页UV(1个人访问1个网站多次，但是还算1个人)
+>传统方法，set保存用户id,然后用set元素数量作为统计标准
+>这种方式保存大量id比较麻烦，占内存。因为目的是计数，不是存id
+>Hyperloglog：
+>优点:占用内存固定，2^64不同的元素，12kb内存。内存角度比较比set好
+>缺点:有0.81%的错误率
+```
+PFadd key element [element ...]
+PFadd mykey a b c d e f g       # 添加数据到第一组
+PFadd mykey2 a b c d e f g      # 添加数据到第二组
+PFCOUNT mykey                   # 统计mykey中元素基数的数量
+PFMERGE mykey3 mykey mykey2     # 合并mykey与mykey2到mykey3：删除重复
+PFCOUNT mykey3                  # 查看并集的数量
+# 如果允许容错，一定要使用Hyperloglog !
+# 如果不允许容错，就要使用set或者自己的数据类型 !
+```
+## 3.3.Bitmaps 位存储
+>筛选用户：用0101最快:
+>例子：1、统计疫情感染人数：0 1 0 1 0 1，2、活跃不活跃，3、是否登录，4、打卡（mysql:user: status date）这样很慢，所有两个状态都可以使用Bitmaps!
+>Bitmaps位图，数据结构！都是操作魏晋至进行记录，就只有0和1两个状态。
+>365天 = 365bit/8bit = 46kb
+```
+<!-- 使用bitmap记录周一到周日打卡！ -->
+# 周一：1 周二：0 周三：1 周四：1 周五：0 周六：1 周日：1
+# 统计有多少个1
+setbit sign 1 0
+setbit sign 2 0
+setbit sign 3 0
+setbit sign 4 0
+setbit sign 5 0
+setbit sign 6 0
+setbit sign 7 0
+getbit sign 1
+getbit sign 2
+getbit sign 3
+getbit sign 4
+getbit sign 5
+getbit sign 6
+getbit sign 7
+# 统计打卡天数
+bitcount sign [start end]
+bitcount sign                       # 统计打卡天数，默认所有
+```
+# 4.Redis的基本事务操作
+>redis单条命令保存原子性，但是redis事务不保证原子性，没有隔离集合概念！
+>Redis事务本质：一组命令的集合！一个手游命令被序列化，进行顺序执行！
+>一次性、顺序性、排他性！这样执行一系列命令
+>redis的事务：
+```
+# 正常执行事务：
+1、开启事务(multi)
+2、命令入队(...)
+>set k1 v1
+>set k2 v2
+>get k2
+3、执行事务(exec)
+```
+>执行完后都要重新开启新事务
+```
+# 放弃执行事务：
+1、开启事务(multi)
+2、命令入队(...)
+>set k1 v1
+>set k2 v2
+>get k2
+3、取消事务(discard)
+```
+>执行错误:
+>1、编译型异常(代码问题~命令问题):事务所有命令不会执行.
+>multi
+>set k1 v1
+>setget k1 v1
+>exec
+>EXECABORT Transaction discarded because of previous errors.
+>2、运行异常(1/0):若事务命令存在语法错误，其他命令可以正常执行，错误命令抛出异常. 
+>multi
+>incr k1
+>set k1 v1
+>exec
+>ERR value is not an integer or out of range
+# 5.监控！Watch：Redis实现乐观锁、悲观锁
+```
+# 悲观锁：
+· 很悲观，认为什么时候都出问题，所以什么时候都会加锁！
+# 乐观锁：
+· 很乐观，认为什么时候都不会出现问题，什么时候都不上锁，更新时候会判断一下，此期间是否有人修改过这个数据
+· 获取version
+· 更新时候比较version
+· 常用，效率高
+```
+>Redis监视测试
+```
+# 正常执行：成功
+multi                       # 开启事务
+set money 100               # 钱包100元
+get out 0                   # 记录支出0
+watch money                 # 监视money钱包
+decrby money 20             # 钱包花去20
+incrby out 20               # 支出增加20
+exec                        # 执行事务
+```
+>watch相当于乐观锁
+```
+# 多个窗口执行时：
+1:watch money                 # 线程1：监视钱包
+1:multi                       # 线程1：开启事务
+1:decrby money 20             # 线程1：钱包花去20
+1:incrby out 20               # 线程1：支出增加20
+2:get money                   # 线程2：查看钱包
+2:set money 1000              # 线程2：修改钱包
+1:exec                        # 线程1：执行事务时，前边的watch会提醒当前事务一定执行失败，因为线程2修改了我们的值，执行失败
+>nil                          # 修改失败
+1:unwatch                     # 事务执行失败先解锁，放弃监视
+1:watch monet                 # 再监视获取最新的值，执行别的操作
+1:exec                        # 执行事务时会比对监视的值是否发生变化
+```
+>分布式秒杀乐观锁
+# 6.Jedis
+>我们要使用JAVA来操作Redis
+>什么是Jedis?是Redis官方推荐的java连接工具！使用Java操作Redis中间件！如果你要是用java操作redis，那么一定要对jedis十分熟悉.
+
+
+
 
