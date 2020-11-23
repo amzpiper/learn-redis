@@ -326,7 +326,29 @@ exec                        # 执行事务
 # 6.Jedis
 >我们要使用JAVA来操作Redis
 >什么是Jedis?是Redis官方推荐的java连接工具！使用Java操作Redis中间件！如果你要是用java操作redis，那么一定要对jedis十分熟悉.
+1、导入依赖
+```
+<!-- https://mvnrepository.com/artifact/redis.clients/jedis -->
+<dependency>
+    <groupId>redis.clients</groupId>
+    <artifactId>jedis</artifactId>
+    <version>3.2.0</version>
+</dependency>
 
-
+<!-- https://mvnrepository.com/artifact/com.alibaba/fastjson -->
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>fastjson</artifactId>
+    <version>1.2.62</version>
+</dependency>
+```
+2、编码测试
+2.1.连接数据库
+2.2.操作命令
+2.3.断开连接
+# 7.SpringBoot整合
+>springboot操作数据：springdata封装了 jpa jdbc mongdb redis，springdata也是和springboot齐名的项目
+>jedis:采用直连：多线程不安全，避免不安全，得用jedis pool连接池！更像BIO模式
+>lettuce:采用netty异步请求，实例可以在多个线程中共享，不存在线程不安全的情况！更像NIO模式
 
 
