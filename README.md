@@ -348,7 +348,102 @@ exec                        # 执行事务
 2.3.断开连接
 # 7.SpringBoot整合
 >springboot操作数据：springdata封装了 jpa jdbc mongdb redis，springdata也是和springboot齐名的项目
+>说明：在springboot2.x之后，原来的jedis替换为lettuce!
 >jedis:采用直连：多线程不安全，避免不安全，得用jedis pool连接池！更像BIO模式
 >lettuce:采用netty异步请求，实例可以在多个线程中共享，不存在线程不安全的情况！更像NIO模式
 
+```
+源码分析：
+/*
+ * Copyright 2012-2020 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
+package org.springframework.boot.autoconfigure.data.redis;
+
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+/**
+ * {@link EnableAutoConfiguration Auto-configuration} for Spring Data's Redis support.
+ *
+ * @author Dave Syer
+ * @author Andy Wilkinson
+ * @author Christian Dupuis
+ * @author Christoph Strobl
+ * @author Phillip Webb
+ * @author Eddú Meléndez
+ * @author Stephane Nicoll
+ * @author Marco Aust
+ * @author Mark Paluch
+ * @since 1.0.0
+ */
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnClass(RedisOperations.class)
+@EnableConfigurationProperties(RedisProperties.class)
+@Import({ LettuceConnectionConfiguration.class, JedisConnectionConfiguration.class })
+public class RedisAutoConfiguration {
+
+	@Bean
+	@ConditionalOnMissingBean(name = "redisTemplate")
+	@ConditionalOnSingleCandidate(RedisConnectionFactory.class)
+	public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+		// 默认的RedisTemplate没有过多的设置，redis对象都是需要序列化！Dubbo
+		// 两个反省都是object,object类型，后续使用都要强转
+		// 我们可以自己定义一个RedisTemplate
+		RedisTemplate<Object, Object> template = new RedisTemplate<>();
+		template.setConnectionFactory(redisConnectionFactory);
+		return template;
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	@ConditionalOnSingleCandidate(RedisConnectionFactory.class)
+	//由于String是Redis中最常用的类型,所以我们要单独提出来一个bean！
+	public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
+		StringRedisTemplate template = new StringRedisTemplate();
+		template.setConnectionFactory(redisConnectionFactory);
+		return template;
+	}
+
+}
+
+```
+>整合测试一下
+```
+1.导入配置
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+2.配置连接
+# Springboot 所有得配置类都有一个自动配置类 RedisAutoConfiguration
+# 自动配置类都会绑定一个properties配置文件  RedisProperties
+spring.redis.host=127.0.0.1
+spring.redis.port=6379
+# spring.redis.database=0
+# spring.redis.lettuce.pool.max-active=
+3.测试！
+
+```
