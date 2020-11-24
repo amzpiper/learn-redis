@@ -23,7 +23,7 @@ class RedisSpringbootApplicationTests {
         redisTemplate.opsForValue().set("name","yuhang");
         System.out.println(redisTemplate.opsForValue().get("name"));
         // redis操作字符串的，List
-        redisTemplate.opsForList().leftPush("name","yuhang");
+//        redisTemplate.opsForList().leftPush("name","yuhang","yuhang");
 
         // redis操作字符串的，Set
         redisTemplate.opsForSet();
@@ -47,10 +47,10 @@ class RedisSpringbootApplicationTests {
         // 比如事务和基本的CRUD
         redisTemplate.multi();
         redisTemplate.watch("");
-        redisTemplate.exec();
-        redisTemplate.delete("");
-        redisTemplate.expire("", Duration.ZERO);
-        redisTemplate.move("", 1);
+//        redisTemplate.exec();
+//        redisTemplate.delete("");
+//        redisTemplate.expire("", Duration.ZERO);
+//        redisTemplate.move("", 1);
         // 获取链接,操作数据方法
         RedisConnection redisConnection = redisTemplate.getConnectionFactory().getConnection();
         redisConnection.flushAll();
