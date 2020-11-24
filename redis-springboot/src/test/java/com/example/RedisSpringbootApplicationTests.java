@@ -1,5 +1,8 @@
 package com.example;
 
+import com.example.pojo.User;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,7 +56,16 @@ class RedisSpringbootApplicationTests {
         redisConnection.flushAll();
         redisConnection.flushDb();
         redisConnection.close();
+    }
 
+    @Test
+    public void test() throws JsonProcessingException {
+        // 真实的开发一般都使用json来传递对象
+        User user = new User("狂神说",3);
+        // 对象必须序列化，怎么解析呢？默认是JDK序列化，要编写自己的序列化
+        // String jsonUser = new ObjectMapper().writeValueAsString(user);
+        redisTemplate.opsForValue().set("user",user);
+        System.out.println(redisTemplate.opsForValue().get("user"));
     }
 
 }
