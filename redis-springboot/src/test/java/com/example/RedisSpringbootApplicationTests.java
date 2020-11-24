@@ -2,19 +2,19 @@ package com.example;
 
 import com.example.pojo.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisTemplate;
-
 import java.time.Duration;
 
 @SpringBootTest
 class RedisSpringbootApplicationTests {
 
     @Autowired
+    @Qualifier("redisTemplate")
     private RedisTemplate redisTemplate;
 
     @Test
@@ -36,7 +36,6 @@ class RedisSpringbootApplicationTests {
 
         // redis操作字符串的，ZSet
         redisTemplate.opsForZSet();
-
         // redis操作字符串的，HyperLogLog
         redisTemplate.opsForHyperLogLog();
 
@@ -47,10 +46,10 @@ class RedisSpringbootApplicationTests {
         // 比如事务和基本的CRUD
         redisTemplate.multi();
         redisTemplate.watch("");
-//        redisTemplate.exec();
-//        redisTemplate.delete("");
-//        redisTemplate.expire("", Duration.ZERO);
-//        redisTemplate.move("", 1);
+        redisTemplate.exec();
+        redisTemplate.delete("");
+        redisTemplate.expire("", Duration.ZERO);
+        redisTemplate.move("", 1);
         // 获取链接,操作数据方法
         RedisConnection redisConnection = redisTemplate.getConnectionFactory().getConnection();
         redisConnection.flushAll();

@@ -1,6 +1,6 @@
 # learn-redis
 >Redis 是一个开源（BSD许可）的，内存中的数据结构存储系统，它可以用作数据库、缓存和消息中间件。 它支持多种类型的数据结构，如 字符串（strings）， 散列（hashes）， 列表（lists）， 集合（sets）， 有序集合（sorted sets） 与范围查询， bitmaps， hyperloglogs 和 地理空间（geospatial） 索引半径查询。 Redis 内置了 复制（replication），LUA脚本（Lua scripting）， LRU驱动事件（LRU eviction），事务（transactions） 和不同级别的 磁盘持久化（persistence）， 并通过 Redis哨兵（Sentinel）和自动 分区（Cluster）提供高可用性（high availability）。
-
+# 基础
 ## 1.基本命令
 ```
 ping                    # 测试联通：PONG
@@ -14,8 +14,8 @@ expire name time        # 设置KEY过期时间
 ttl name                # 查看剩余时间，-2为已过期
 exist name              # 判断KEY是否存在
 ```   
-# 2.五大基础类型
-## 2.1.String类型
+## 2.五大基础类型
+### 2.1.String类型
 ```
 append                  # 追加数据，name不存在set
 strlen                  # 数据长度
@@ -62,7 +62,7 @@ getset db mongoDB       # 得出来redis,再get db 为mongoDB
 set uid:9555:follow 0 incr
 ```
 
-## 2.2.List类型
+### 2.2.List类型
 >基本数据类型，增加点规则玩成：栈、队列
 >所有List命令都是l开头
 ```
@@ -94,7 +94,7 @@ linsert list after world other # 在world下面插入other
 >Lpush Rpop：队列
 >Lpush Lpop：栈
 
-## 2.3.Set(集合)
+### 2.3.Set(集合)
 >set中的值不能重复
 ```
 sadd myset hello        # 在myset中添加hello
@@ -114,7 +114,7 @@ sunion key1 key2        # 并集
 <!-- 例子：微博A用户所有关注的人放在SET集合中 -->
 <!-- 共同关注,共同爱好，六度理论 -->
 ```
-## 2.4.Hash~Map
+### 2.4.Hash~Map
 >Map集合，key-value,村的也是键值对，但是value是个map集合
 ```
 hset key field value    # 添加key-value到Hash
@@ -138,7 +138,7 @@ hset user:1 name qinjing
 hget user:1 name
 <!-- hash更适合存储对象 -->
 ```
-## 2.5.Zset(有序集合)
+### 2.5.Zset(有序集合)
 >在set的基础上，增加1个值，set k1 v1 / zset k1 score1 v1
 ```
 zadd myzset 1 one           # 添加1个值
@@ -158,8 +158,8 @@ zcount salary key min max   # 判断区间个数(闭区间)
 ```
 >案例思路：set->排序、班级成绩表、工资表、带权重的消息、排行榜(有序集合zset中)
 
-# 3.三种特殊数据类型
-## 3.1.geospatial地理位置
+## 3.三种特殊数据类型
+### 3.1.geospatial地理位置
 >朋友的定位，附近的人，打车距离怎么算？城市经度纬度，redis3.2版本的geo就退出了。
 只有6个命令：GEOADD、GEODIST、GEOHASH、GEOPOS、GEORADIUS、GEORADIUSBYMEMBER
 ```
@@ -200,7 +200,7 @@ geohash china:city beijing shanghai
 zrange china:city 0 -1              # 查看所有城市
 zrem china:city beijing             # 删除北京
 ```
-## 3.2.Hyperloglog基数统计
+### 3.2.Hyperloglog基数统计
 >什么是基数？不重复的元素
 >A {1,3,5,7,8,7}
 >B {1,3,5,7,8}
@@ -222,7 +222,7 @@ PFCOUNT mykey3                  # 查看并集的数量
 # 如果允许容错，一定要使用Hyperloglog !
 # 如果不允许容错，就要使用set或者自己的数据类型 !
 ```
-## 3.3.Bitmaps 位存储
+### 3.3.Bitmaps 位存储
 >筛选用户：用0101最快:
 >例子：1、统计疫情感染人数：0 1 0 1 0 1，2、活跃不活跃，3、是否登录，4、打卡（mysql:user: status date）这样很慢，所有两个状态都可以使用Bitmaps!
 >Bitmaps位图，数据结构！都是操作魏晋至进行记录，就只有0和1两个状态。
@@ -249,7 +249,7 @@ getbit sign 7
 bitcount sign [start end]
 bitcount sign                       # 统计打卡天数，默认所有
 ```
-# 4.Redis的基本事务操作
+## 4.Redis的基本事务操作
 >redis单条命令保存原子性，但是redis事务不保证原子性，没有隔离集合概念！
 >Redis事务本质：一组命令的集合！一个手游命令被序列化，进行顺序执行！
 >一次性、顺序性、排他性！这样执行一系列命令
@@ -286,7 +286,7 @@ bitcount sign                       # 统计打卡天数，默认所有
 >set k1 v1
 >exec
 >ERR value is not an integer or out of range
-# 5.监控！Watch：Redis实现乐观锁、悲观锁
+## 5.监控！Watch：Redis实现乐观锁、悲观锁
 ```
 # 悲观锁：
 · 很悲观，认为什么时候都出问题，所以什么时候都会加锁！
@@ -323,7 +323,7 @@ exec                        # 执行事务
 1:exec                        # 执行事务时会比对监视的值是否发生变化
 ```
 >分布式秒杀乐观锁
-# 6.Jedis
+## 6.Jedis
 >我们要使用JAVA来操作Redis
 >什么是Jedis?是Redis官方推荐的java连接工具！使用Java操作Redis中间件！如果你要是用java操作redis，那么一定要对jedis十分熟悉.
 1、导入依赖
@@ -346,7 +346,7 @@ exec                        # 执行事务
 2.1.连接数据库
 2.2.操作命令
 2.3.断开连接
-# 7.SpringBoot整合
+## 7.SpringBoot整合
 >springboot操作数据：springdata封装了 jpa jdbc mongdb redis，springdata也是和springboot齐名的项目
 >说明：在springboot2.x之后，原来的jedis替换为lettuce!
 >jedis:采用直连：多线程不安全，避免不安全，得用jedis pool连接池！更像BIO模式
@@ -505,3 +505,183 @@ class RedisSpringbootApplicationTests {
     }
 }
 ```
+```
+\\ 编写自己的序列化配置
+package com.example.config;
+
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+public class RedisConfig {
+
+    // 固定的模板
+    // 编写我们自己的RedisTemplate
+    @Bean
+    @SuppressWarnings("all")
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+        // 我们为了自己方便一般用String, Object类型
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(factory);
+
+        // json序列化配置,转义：
+        Jackson2JsonRedisSerializer jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer(Object.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        objectMapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
+        jackson2JsonRedisSerializer.setObjectMapper(objectMapper);
+
+        // string序列化配置
+        StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
+
+        // 配置具体的序列化方式,配置自己的序列化
+        // key采用string序列化
+        template.setKeySerializer(stringRedisSerializer);
+        // hash的key也用sting序列化
+        template.setHashKeySerializer(stringRedisSerializer);
+        // value使用json序列化
+        template.setValueSerializer(jackson2JsonRedisSerializer);
+        // hash的value使用json序列化
+        template.setValueSerializer(jackson2JsonRedisSerializer);
+
+        return template;
+    }
+}
+```
+>所有的redis操作，对于开发人员来说，重要的是要理解redis的思想和每一种数据结构的用处与作用场景
+# 高级
+## 8.Redis.conf详解
+>启动时候通过配置文件启动的！
+```
+# 单位:units大小写不敏感
+# Redis configuration file example.
+#
+# Note that in order to read the configuration file, Redis must be
+# started with the file path as first argument:
+#
+# ./redis-server /path/to/redis.conf
+
+# Note on units: when memory size is needed, it is possible to specify
+# it in the usual form of 1k 5GB 4M and so forth:
+#
+# 1k => 1000 bytes
+# 1kb => 1024 bytes
+# 1m => 1000000 bytes
+# 1mb => 1024*1024 bytes
+# 1g => 1000000000 bytes
+# 1gb => 1024*1024*1024 bytes
+#
+# units are case insensitive so 1GB 1Gb 1gB are all the same.
+```
+```
+# 包含文件
+################################## INCLUDES ###################################
+
+# Include one or more other config files here.  This is useful if you
+# have a standard template that goes to all Redis servers but also need
+# to customize a few per-server settings.  Include files can include
+# other files, so use this wisely.
+#
+# Notice option "include" won't be rewritten by command "CONFIG REWRITE"
+# from admin or Redis Sentinel. Since Redis always uses the last processed
+# line as value of a configuration directive, you'd better put includes
+# at the beginning of this file to avoid overwriting config change at runtime.
+#
+# If instead you are interested in using includes to override configuration
+# options, it is better to use include as the last line.
+# 导入文件
+# include /path/to/local.conf
+# include /path/to/other.conf
+
+################################## MODULES #####################################
+```
+```
+# 网络
+bind 127.0.0.1      #绑定ip
+protected-mode yes  # 保护模式
+port 6379           # 端口设置
+```
+```
+# 通用配置
+daemonize yes       # 以守护的方式进行，默认no不开启
+pidfile /var/run/redis_6379.pid             #如果以后太方式运行需要文件
+```
+```
+# 日志
+# Specify the server verbosity level.
+# This can be one of:
+# debug (a lot of information, useful for development/testing)              # 开发阶段
+# verbose (many rarely useful info, but not a mess like the debug level)    # debug
+# notice (moderately verbose, what you want in production probably)         # 生产环境
+# warning (only very important / critical messages are logged)              # 警告
+loglevel notice
+
+logfile ""          # 日志文件位置名，
+database 16         # 数据库数量，默认16
+always-show-logo yes# 是否总是显示露沟
+```
+```
+# 快照：持久化时，在规定时间内执行了多少次操作会持久化生成文件(.rdb/aof)
+# 若不持久化就会丢
+# 持久化规则,我们以后自己定义
+save 900 1          # 如果1个key进行了修改在900s内就进行持久化操作
+save 300 10         # 如果10个key进行了修改在300s内就进行持久化操作
+save 60 10000       # 如果10000个key进行了修改在60s内就进行持久化操作，高并发
+
+stop-writes-on-bgsave-error yes # 持久化出错是否还继续持久化操作
+
+rdbcompression yes              # 是否压缩rdb文件，耗cpu资源
+rdbchecksum yes                 # 保存时是否检查rdb文件校验并修复
+dir ./                          # rdb保存目录
+```
+```
+# REPLICATION 主从复制时再看，多个Redis
+```
+```
+
+################################## SECURITY ###################################
+
+# Require clients to issue AUTH <PASSWORD> before processing any other
+# commands.  This might be useful in environments in which you do not trust
+# others with access to the host running redis-server.
+#
+# This should stay commented out for backward compatibility and because most
+# people do not need auth (e.g. they run their own servers).
+#
+# Warning: since Redis is pretty fast an outside user can try up to
+# 150k passwords per second against a good box. This means that you should
+# use a very strong password otherwise it will be very easy to break.
+#
+# requirepass foobared
+# 密码
+requirepass 123456
+
+# 命令设置获取密码
+config get requirpass
+config set requirpass "123456"
+auth 123456                 # 验证密码登录
+```
+```
+CLIENTS
+maxclients 10000            # 设置redis最大客户端数量
+maxmemory                   # 最大内存数量
+
+```
+
+## 9.Redis持久化
+>
+
+## 10.Redis发布订阅
+>微信公众号推送订阅
+
+## 11.Redis主从复制
+>高可用：主从复制、哨兵模式
+
+## 12.Redis缓存穿透和雪崩
+>布隆过滤器
+
