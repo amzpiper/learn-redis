@@ -626,6 +626,7 @@ database 16         # 数据库数量，默认16
 always-show-logo yes# 是否总是显示露沟
 ```
 ```
+# RDB
 # 快照：持久化时，在规定时间内执行了多少次操作会持久化生成文件(.rdb/aof)
 # 若不持久化就会丢
 # 持久化规则,我们以后自己定义
@@ -643,9 +644,9 @@ dir ./                          # rdb保存目录
 # REPLICATION 主从复制时再看，多个Redis
 ```
 ```
+# 密码
 
 ################################## SECURITY ###################################
-
 # Require clients to issue AUTH <PASSWORD> before processing any other
 # commands.  This might be useful in environments in which you do not trust
 # others with access to the host running redis-server.
@@ -667,14 +668,64 @@ config set requirpass "123456"
 auth 123456                 # 验证密码登录
 ```
 ```
-CLIENTS
+CLIENTS客户端限制配置，一般不管
 maxclients 10000            # 设置redis最大客户端数量
 maxmemory                   # 最大内存数量
-
+maxmemory-policy noeviction # 内存到达上限之后的处理策略：juc线程池满了处罚四种策略，# 移除过期的key、报错、等6种
+    1、volatile-lru：只对设置了过期时间的key进行LRU（默认值） 
+    2、allkeys-lru ： 删除lru算法的key   
+    3、volatile-random：随机删除即将过期key   
+    4、allkeys-random：随机删除   
+    5、volatile-ttl ： 删除即将过期的   
+    6、noeviction ： 永不过期，返回错误
+lazyfree                    # 释放内存
 ```
-
+```
+APPEND ONLY模式|AOF模式设置
+appendonly no               # 默认不开启，默认RDB方式用来持久化，一般够用了，rdb完全够用了
+appendfilename "*.aof"      # aof持久化文件 
+appendfsync everysec        # 每秒同步可能会丢失1秒的数据；always每次都同步，速度慢；no不同步
+```
 ## 9.Redis持久化
->
+>面试和工作，持久化是重点！
+>Redis是内存数据库，如果不讲内存中的数据库状态保存到磁盘，一旦服务器进程退出，服务器中的数据库状态也会消失，所以Redis提供了持久化功能！
+### 9.1.RDB (Redis DataBase)
+什么是RDB?
+
+![RDB](/images/RDB.png)
+
+>在指定的时间间隔内写入磁盘，储存snapshot快照，恢复时是讲快照文件直接读到内存里。
+
+>Redis会单独创建（fork）一个进程来进行持久化，会先将数据写入到一个临时RDB文件中，待持久化过程结束了，用临时文件替换上次的持久化好的文件，退出子进程。整个过程中主进程不进行任何IO操作的，确保了极高的性能。
+
+>如果需要进行大规模数据的回复，且对于回复的完整性不是非常敏感，那RDB方式更加的搞笑。RDB的缺点是最后一次持久化后的数据可能丢失.
+>我们默认使用RDB，一般情况下不需要修改这个配置！
+
+==rdb保存的文件是dump.rdb==,在配置文件“dbfilename dump.rdb”行中配置
+==在生产环境我们会备份rdb文件== 
+> 触发机制
+1.save条件满足 
+2.flush all 默认产生一个rdb
+3.推出Redis时自动产生rdb文件
+备份完成后自动生成一个rdb文件
+
+>恢复rdb文件
+1.只需要讲rdb文件放到redis启动目录下，redis启动时自动检查dump.rdb回复其中的数据。全自动
+2.config get dir 查看存放位置，把rdb文件放到这里，启动redis会自动扫描完后恢复
+
+>优点
+>1.适合大规模的数据恢复，宕机了别删除rdb。
+>2.对数据完整性不高时。若设置60s，在59秒时宕机时10000条数据就会丢失。
+>缺点
+>1.需要一定的时间间隔，如果redis意外宕机了，最后一次修改的数据就没有了。
+>2.当fork一个进程时需要一个内存空间。
+
+### 9.2.AOF (Append Only File)
+什么是AOF?
+>将所有命令都记录下来，回复的时候将这个文件全部在执行一遍。以日记的方式记录每一个操作。
+
+
+![RDB](/images/RDB.png)
 
 ## 10.Redis发布订阅
 >微信公众号推送订阅
