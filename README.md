@@ -689,6 +689,7 @@ appendfsync everysec        # 每秒同步可能会丢失1秒的数据；always�
 ## 9.Redis持久化
 >面试和工作，持久化是重点！
 >Redis是内存数据库，如果不讲内存中的数据库状态保存到磁盘，一旦服务器进程退出，服务器中的数据库状态也会消失，所以Redis提供了持久化功能！
+>在主从复制中，rdb是备用的。备用在从机上面，不占用主机内存，aof一般不用
 ### 9.1.RDB (Redis DataBase)
 什么是RDB?
 
@@ -722,17 +723,386 @@ appendfsync everysec        # 每秒同步可能会丢失1秒的数据；always�
 
 ### 9.2.AOF (Append Only File)
 什么是AOF?
->将所有命令都记录下来，回复的时候将这个文件全部在执行一遍。以日记的方式记录每一个操作。
-
-
-![RDB](/images/RDB.png)
+![RDB](/images/AOF.png)
+>以日志的方式来记录每个写操作，将Reids执行过的所有指令记录下在(读操作不记录)。只追加文件但不改写文件，redis启动时读写文件重构建数据，redis重启的话根据日志文件内容将写指令从前到后执行一次，完成数据恢复的操作。
+>AOF保存的文件为appendonly.aof
+>默认不开启,将appendonly yes,重启redis就生效。aof文件有问题启动不了redis
+```
+解决问题：
+ps -ef|grep redis   //redis没开启
+# 用redis-check-aof自动修复文件
+redis-check-aof --fix appendonly.aof
+yes
+# 重启就恢复成功，但是有一些会删除掉
+```
+== ABD是全丢，AOF是丢失部分 ==
+```
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync always              # 每次修改都会sync,消耗性能
+appendfsync everysec            # 每秒执行一次sync,可能丢失1s数据
+appendfsync no                  # 不执行sync，操作系统自己同步数据，速度最快
+# 重写规则，redis记录上次文件大小，大于64mb时，重新fork新进程将文件重写
+no-appendfsync-no-rewirte no    # 默认不打开，文件无线的追加，文件会越来越大，开启后保证aof体积不要太大
+auto-aof-rewirte-percentage 100 # 
+auto-aof-rewirte-min-size 64mb  # 
+```
+>优点
+>1.每次修改都同步，文件完整性更好
+>2.默认开启每秒同步一次
+>2.no 从不同步效率最高
+>缺点
+>1.相对据数据文件，aof文件远远大于rdb，修复速度比rdb慢
+>2.AOF运行效率比rdb慢，redis默认为rdb持久化
+```
+拓展：
+只做缓存，如果你希望数据仅在服务器运行的时候存在，不用开启持久化
+两种持久化同时开启，会使用aof来恢复数据。
+建议在从机上使用rdb，15分钟备份一次 save 900 1
+如果不开启aof，仅靠Master-Salve-Replication实现高性能也可以。减少了rewirte打来的系统开销，如果断电Master/Salve，就会把所有数据都丢掉了,启动脚本会比较Master与Salve的rdb文件，恢复最新的。微博就是这种架构。
+```
 
 ## 10.Redis发布订阅
->微信公众号推送订阅
+>Redis发布/订阅，是一种消息通信模式：发送者发送消息(pub)，订阅者就收消息(sub)，微信、微博、关注系统！还有rabbitmq、kafka
+>Redis发布消息图,用list也可以做，第一个：消息发送者，第二个：频道，第三个：消息订阅者
+![1](/images/1.png)
+>下图展示了频道channel1，以及订阅这个频道的客户端--clent2，clent5，clent1，之间的关系：
+![2](/images/2.png)
+>当有新消息时，通过publish命令发送给频道channel1时，这个消息会被发送给订阅它的三个客户端：
+![3](/images/3.png)
+>命令：
+>这些命令被广泛用于构建即时通讯应用，比如网络聊天和实时广播、实时提醒等：
+![4](/images/4.png)
+```
+#订阅者-窗口1-自动监听
+redis-cli -p 6379
+subscribe kangshenshuo
+# 等待推送者发布信息
+# 收到信息，格式：
+# message               # 消息
+# kuangshenshuo         # 消息的频道
+# hello,kuangshen       # 消息内容
+#发布者-窗口2-发布消息
+redis-cli -p 6379
+publish kuangshenshuo "hello,kuangshen"
+```
+>原理
+```
+redis是c实现的，通过分析源码pubsub.c文件，了解底层机制
+通过subscribe订阅一个频道后，redis-server里维护1个字典，字典的键是1个个频道，字典的值是1个链表。链表中保存者订阅这个频道的所有channel的客户端，subscribe命令的关键是将客户端添加给给定的channel订阅链表中。
+```
+![5](/images/5.png)
+```
+通过publish发送消息给订阅者，redis-server会使用给定的频道作为关键字，找出它维护的链表中的所有订阅这个频道的客户端，发送消息给他们
+```
+```
+# 使用场景
+1、实时消息系统
+2、实时聊天，频道当作聊天室，将信息回显给所有人
+3、订阅关注系统
+# 复杂场景会使用消息中间件来做：kafka、rebitmq
+```
 
 ## 11.Redis主从复制
->高可用：主从复制、哨兵模式
+>概念：主从复制，复制1台redis数据到另一台,数据的复制是单向的，智能由主节点到从节点。master以写为主，slave以读为主。
+>默认情况下，每台redis都是一个主节点。
+>主从复制作用主要包括：
+>1、数据冗余：主从复制实现数据的热备份，是持久化外的一种数据冗余方式！
+>2、故障恢复：当主节点出现问题，还可以由节点提供服务，实现快速故障恢复。
+>3、负载均衡：配合读写分离，主节点提供写服务，从节点提供读服务，分担服务器负载。
+>4、高可用集群：除以上外，主从复制还是哨兵和集群能够实施的基础。
 
-## 12.Redis缓存穿透和雪崩
->布隆过滤器
+>一般来说：要将redis运用到项目中去，必须一主二从3个服务器，原因如下：
+>1、从结构上，单个redis服务器会发生单点故障，并且1台服务器需要处理所有的请求负载，压力较大。
+>2、从容量上来说，单个redis服务器内存容量是有限的。单台redis最大使用内存不应该超过20g。
+![6](/images/6.png)
+>电商商品都是1次上传，无数次浏览，多读少写。
+>80%的情况下都是在读，把压力放到从机上，减缓主机服务器压力。一主二从，最少3台。
+
+>环境配置：只配置从库，因为默认是主库
+```
+编写3个配置文件启动3个配置服务。
+# 启动服务
+redis-server kconfig/redis.config
+# 连接
+redis-cli -p 6379
+info replication        # 打印主从复制信息,查看当前库信息
+# 打开3个端口
+# 修改配置文件，copy多个：redis.conf、redis1.conf、redis2.conf、redis3.conf
+redis1.conf：   
+daemonize yes
+pidfile /var/run/redis_6001.pid
+logfile "1.log"
+dbfilename dump1.rdb
+prot 6001
+
+redis2.conf：
+daemonize yes
+pidfile /var/run/redis_6002.pid
+logfile "2.log"
+dbfilename dump2.rdb
+prot 6002
+
+redis3.conf：
+daemonize yes
+pidfile /var/run/redis_6003.pid
+logfile "3.log"
+dbfilename dump3.rdb
+prot 6003
+# 修改对应内容：
+1.端口号
+2.pid名字
+3.log名字
+4.备份文件dump.rdb文明 
+
+# 单机多集群-启动：
+redis-server kconfig/redis.config
+redis-cli -p 6379
+
+redis-server kconfig/redis1.config
+redis-cli -p 6001
+
+redis-server kconfig/redis2.config
+redis-cli -p 6002
+
+redis-server kconfig/redis3.config
+redis-cli -p 6003
+```
+
+>一主二从：
+>默认每一台都是主节点，查看主从信息：info replication，都是主机，开始配置从机(一般只配置从机，找老大)
+>主（6379），从（6001，6002，6003）
+```
+从机6001:
+slaveof 127.0.0.1 6379
+info replication
+
+从机6002:
+slaveof 127.0.0.1 6379
+info replication
+
+从机6003:
+slaveof 127.0.0.1 6379
+info replication
+
+主机6379：
+info replication
+```
+>真是的主从配置应该在文件中配置，文件中配置是永久的，命令行是暂时的。
+
+>文件配置：
+```
+REPLICATION
+replicaof masterip masterport       # 主机ip和port 
+masterauth                          # 主机密码
+```
+
+>细节：主机可以写，从机不能写，只能读，主机中的所有数据自动被从机保存。
+
+>测试
+```
+主机：
+set k1 v1 
+从机：
+get k1
+set k2 v2
+# READONLY You can't write against a read only replica.
+```
+>主机才能写，从机不能写。
+
+>测试主机断掉
+```
+主机：
+shutdown
+从机：
+info replication
+# 如果主机端了，从机必须手动改配置。
+# 主机断开重新上线后，从机依旧连接到主机，获取到数据。
+```
+
+>测试从机断掉
+```
+从机：
+shutdown
+主机：
+info replication
+set k3 v3
+从机:
+get k3
+nil
+# 默认断开重启之后，只要没配置到文件配置中，默认变回主机。原先复制的数据还在，再变成从机还可以拿到主机数据。只要变回从机立马从主机中获取值。
+全量复制：从机连接主机第一次，全复制
+增量复制：已经连接，之后会把增加的复制过来
+# 
+```
+
+>层层链路：
+
+>master->slave->slave,三个连在一起，m断了，第一个s能不能写呢,第一个s依旧是从节点不能写入。
+
+>谋朝篡位：
+>如果没有老大master了，能不能选出新老大，能，得手动。
+```
+从机：
+slaveof no one # 自己当老大
+# 如果老大回来了，得重新配置连接
+slaveof 127.0.0.1 6379
+# 一层一层变动
+```
+
+## 12.哨兵模式：
+（如果没有老大master了，自动选取新老大。）
+>概念：
+
+谋朝篡位自动版，能够监控主机是否故障，如果故障了根据投票数自动将从库转为主库。
+
+哨兵模式是一种特殊的模式，首先Redis提供哨兵模式的命令，哨兵是个独立的进程，它会独立运行。原理是哨兵通过发送指令，等待redis服务器响应，从而监控运行的多个redis实例。
+
+单机哨兵：
+![7](/images/7.png)
+命令：
+
+1) redis-sentinel 
+
+这里哨兵的两个作用：
+
+1) 通过发送命令，让redis服务器返回运行状态，包括主从机服务器。
+2) 当哨兵检测到master舵机，自动将slave转为master，然后通过发布订阅模式通知其他的从服务器，修改配置文件让它转换为主机
+
+然而一个哨兵进程对redis服务器监控，可能出现问题，为此我们使用多哨兵进行监控。各个哨兵之间进行监控。6个进程
+
+多哨兵模式：
+![8](/images/8.png)
+
+假设主服务器舵机，哨兵1先检测结果，系统不会立马进行failover过程，这仅仅是哨兵1主观的认为主服务器不可用，这个现象叫主观下线。当后面的哨兵也发现主服务器不可用，并且当数量达到一定值，他们认为主服务器彻底凉掉了。那么哨兵们进行一次投票（投票算法），后进行failover故障转移操作。转移之后，就会发布订阅模式，让哨兵把自己监控的从服务器切换为主机，这个过程为客观下线。
+
+>测试
+
+目前状态1主3从，配置哨兵。
+
+```
+# 1.创建哨兵文件配置：
+vim sentinel.conf：
+# sentinel monitor 监控名称 ip port 
+sentinel monitor myredis 127.0.0.1 6379 1 
+# 监控主机,1代表主机挂了，从机会投票找新主机，票数多着成为主机
+
+# 2.启动哨兵
+redis-sentinel sentinel.conf
+```
+
+>测试
+```
+主机：
+shutdown
+
+从机01：
+info replication # 现在它还是从机,哨兵过一会再选举，进行故障转移
+
+从机02：
+info replication 
+# 自动变为了master
+```
+如果master节点断开了，从从中随机选择1个转为主机。
+哨兵日志有输出记录，新机回来了只能当从机，自动扫描并规定到新主机下当从机，这就是哨兵模式的规则
+
+优点：
+
+1)哨兵集群，基于主从复制，所有的主从配置优点他都有
+2)主从可以切换，故障可以转移，系统可用性会更好
+3)哨兵模式就是主从复制的升级，手动到自动，更加健壮
+
+缺点：
+
+1)redis不好在线扩容，当配置文件写死了更麻烦，在线扩容麻烦
+2)实现哨兵配置很麻烦，里面有很多选择
+
+>哨兵全部配置
+```
+# 哨兵sentinel实例运行的端口，多个哨兵配置多个端口
+prot 6379
+
+# 哨兵工作目录文件
+dir /tmp
+
+# 哨兵监控的redis主节点的ip port
+sentinel monitor mymaster 127.0.0.1 prot quorum
+
+# 当redis实例开启时requirepass foobared 授权密码，这样所有连接redis实例的客户端都要提供密码
+sentinel auth-pass mymaster password
+
+# 指定转换延迟秒数，默认30秒
+sentinel down-after-milliseconds mymaster 30000
+
+# 配置当某一事件发生需要执行的脚本
+# 脚本规则：
+# 脚本执行返回1：那么该脚本稍后会再次执行，重复执行数默认为10 
+# 脚本执行返回2：或者比2更大的数，脚本将不会再执行
+# 脚本被终端默认返回1，脚本最大执行时间为60s，超过60s，被sigkill信号终止，之后重新进行。
+
+# 通知类脚本：
+# 当sentinel有任何警告级别事件(主观、客观下线)，都会调用脚本，脚本应该通过邮件或sms形式通知管理员。调用该脚本将传给脚本2个参数，一个是事件的类型，一个是事件的描述，如果配置了脚本路径，必须存在该文件，否则sentinel启动不了
+
+#通知脚本：
+sentinel notification-script mymaster /var/redis/notify.sh
+
+#客户端重新配置主节点参数脚本：
+#当一个master由于failover发生改变时，调用该脚本，通知相关客户端关于master的地址已经改变的信息。
+#一下参数将会在调用时传递给脚本：
+#master-name role state from-ip from-port to-ip to-port
+#目前state总是failover
+#role是leader或者observer中1个
+#参数from-ip from-port to-ip to-port是用来和旧的master和新的master通信的
+#这个脚本应该是通用的能被多次调用的，不是针对性的
+#sentinel client-reconfig-script master-name script-path
+#sentinel client-reconfig-script mymaster /var/redis/reconfig.sh
+```
+高级程序员：springboot、springcloud、架构、大数据、elk
+
+## 13.Redis缓存穿透和雪崩
+>都是服务高可用问题
+### 13.1.缓存穿透（查不到）
+>概念:
+
+读的请求先去redis中查，如果缓存中没有就去数据库中查询
+如果jmeter，压力测试器或多请求客户端一直请求mysql，当很多时，给数据库造成很大压力。mysql崩了。
+
+>解决方案:
+
+1) 布隆过滤器:布隆过滤器是一种数据结构，对所有查询的参数以hash形式储存，再控制器先校验，不符合就丢弃，从而避免对底层存储系统的查询压力。
+![9](/images/9.png)
+2) 缓存空对象：当存储层没有被命中后，即使返回的空对象也将缓存起来，同时设置一个过期时间，之后再访问这个数据将从缓存中获取，保护后端数据源。
+![10](/images/10.png)
+
+但是这种方法存在两个问题：
+
+1)如果空值被缓存起来，需要更多的空间。
+1)即使设置了过期时间，还是会存在缓存层和储存层的数据会有一段时间窗口不一致，这对需要保持一致性的业务有影响。
+### 13.2.缓存击穿（查的量太大）
+>概念：
+
+火力全部击中一个点，指一个key非常热点，在不停的抗者大并发，大并发集中对这一个点进行访问，当key在失效的瞬间，持续的大并发就穿破缓存，直接请求到数据库。如：微博热搜。如果在这个点没有抗住，就会宕机。
+
+>解决方案：
+
+1)设置热点数据永不过期
+2)加互斥锁-分布式锁：保证对每个key同时只有一个线程去查询服务，其他线程没有获得分布式锁的权限，因此只需要等待即可。这种方式将高并发转移到了分布式锁，因此对分布式锁考验很大。JUC并发
+
+
+### 13.1.缓存雪崩
+>概念：
+
+指在某一个时间段，缓存集体失效。或者redis宕机。
+
+比如双十一时，把这波比较集中的商品放入缓存中，假设缓存1个小时，那么过了1小时后，对这批商品的访问，全部落到数据库上，对数据库来说产生周期性的压力波峰。储存层调用量增大，造成储存层挂掉的情况。
+![11](/images/11.png)
+
+如果集中过期，倒不是最致命的，最致命的缓存雪崩是缓存缓存服务器的某个节点宕机或断网。
+例子：双十一时候停掉一些服务或服务降级，保证主要的服务可用，如退款。
+
+>解决方案：
+
+1) redis高可用：这个思想的含义是，既然redis可能挂掉，那么我多增设几台redis，这样1台挂掉之后，其他的还可以工作，其实就是搭建的集群。
+2)降流降级：思想是在缓存就失效后，通过枷锁或者队列来控制都数据库写缓存的线程数量。比如对某个key只允许一个线程查询数据和写缓存，其他线程等待。
+3)数据预热：在正式部署之前，对可能的数据预先访问一遍，在即将发生大并发访问前手动触发加载缓存不同的key，设置不同的过期时间，让缓存失效的时间尽量均匀。如：
 
